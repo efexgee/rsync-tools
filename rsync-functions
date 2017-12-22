@@ -1,0 +1,73 @@
+# rsync-related functions
+#
+# Falko Goettsch 2017
+
+rsync_report () {
+    # summarizes the status of rsyncs based on their logfiles
+    # expects the current directory to contain rsync logs called *.log
+	local finished=0
+	local building=0
+	local error=0
+
+	output=$(for log_file in $(ls -1 *.log); do
+        # get the last line of the logfile
+		tail=$(tail -1 $log_file)
+
+        # how many lines in each logfile
+	    lines=$(wc -l $log_file | cut -d\  -f1)
+
+        # derive label from logfile name
+		label=${log_file/.log/}
+
+		printf "%-20s %8s : $tail\n" $label $lines
+		done)
+
+    echo "$output"
+
+	echo "$output" | egrep -v "(] sent |rsync error)" | cut -c1-`tput cols`
+
+    # count how many rsyncs are in each state
+	building=`echo "$output" | grep -c "building file list"`
+	error=`echo "$output" | grep -c "rsync error"`
+	finished=`echo "$output" | grep -c "] sent"`
+
+	echo
+
+    # everything else is "Other"
+	other=$(( `echo "$output" | wc -l` - $finished - $building - $error ))
+	printf "Building: %3d\nError: %6d\nOther: %6d\nComplete: %3d\n" $building $error $other $finished
+}
+
+function rsync_ps () {
+    # show status of all rsyncs running on a server
+    # label are derived from the --log-file file name
+    # prints PTS so you know which screen window it's running in
+    #TODO print usage
+	if [ "$1" = "-u" ]; then
+        # more compact version
+		ps h -C rsync k -etime -o etime,tty,args | sed "s#pts/##; s/ *rsync .*--log-file \([^ ]*\)\.log .*/ \1/" | sort -k3 | uniq -s 14 | sed 's/ \([0-9]\) /  \1 /'
+	else
+		ps h -C rsync k -s,-etime -o s,etime,tty,wchan:23,args | sed "s/rsync .*--log-file \([^ ]*\)\.log .*/\1/" | sort -k5 | egrep "(^[RT]|$)"
+	fi
+}
+
+function rsync_log () {
+    # print summary of a rsync log file
+    # start timestamp, files count, total size, end timestamp
+    #TODO support multiple files
+    local func_name=${FUNCNAME[0]}
+
+	if (( $# != 1 )); then
+		echo "Usage: $func_name <rsync log file>"
+		return 1
+	fi
+
+	local log_file=$1
+
+    # grab the relevant lines in a ()
+	(head -1 $log_file
+	tail -100 $log_file | egrep '(Number of files transferred|Total transferred file size)'
+	tail -1 $log_file) |
+    # then format the output
+	sed 's/\[[^]]*\] //; s/Number of files transferred:/Files /; s/Total transferred file size:/Size  /'
+}
