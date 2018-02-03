@@ -1,6 +1,4 @@
-# rsync-related functions
-#
-# Falko Goettsch 2017
+# FUNCTIONS
 
 rsync_report () {
     # summarizes the status of rsyncs based on their logfiles
