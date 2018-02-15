@@ -1,0 +1,1 @@
+for poop in `ls *log`; do rtime=`rsync_log $poop | rsync_time.py`; echo "$rtime $poop"; done | sort -n
